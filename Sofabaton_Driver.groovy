@@ -67,7 +67,7 @@
 */
 
 def version() {
-    return "1.5"
+    return "1.6"
 }
 
 metadata {
@@ -90,7 +90,7 @@ metadata {
             input name:"btnLabel8", type:"text", title:"8:", description:"Button 8 label", required:false
             input name:"btnLabel9", type:"text", title:"9:", description:"Button 9 label", required:false
             input name:"btnLabel10", type:"text", title:"10:", description:"Button 10 label", required:false
-            input name: "userInfo", type: "paragraph", element: "paragraph", title: "User Definable Buttons", description: "Enter the match string the remote sends. Optionally add a pipe | followed by a description e.g. watchTV|Watch TV. The description is optional — e.g. watchTV is also valid."
+            input name: "userInfo", type: "paragraph", element: "paragraph", title: "User Definable Buttons", description: "Enter the match string the remote sends. Optionally add a pipe | followed by a description e.g. watchTV|Watch TV. The match string is case sensitive and must match what you entered in the remote app."
             input name:"usrBtn1", type:"text", title:"User 1:", description:"matchString|Description", required:false
             input name:"usrBtn2", type:"text", title:"User 2:", description:"matchString|Description", required:false
             input name:"usrBtn3", type:"text", title:"User 3:", description:"matchString|Description", required:false
