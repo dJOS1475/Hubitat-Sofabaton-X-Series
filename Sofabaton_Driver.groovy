@@ -70,8 +70,10 @@ def version() {
     return "1.5"
 }
 
+
+
 metadata {
-    definition (name: "Sofabaton X Series", namespace: "hubitat", author: "Mike Maxwell") {
+    definition (name: "Sofabaton X Series", namespace: "hubitat", author: "Mike Maxwell", importUrl: "https://raw.githubusercontent.com/dJOS1475/Hubitat-Sofabaton-X-Series/refs/heads/main/Sofabaton_Driver.groovy") {
         capability "Actuator"
         capability "PushableButton"
         capability "Switch"
