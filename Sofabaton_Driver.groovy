@@ -79,17 +79,6 @@ metadata {
             input name: "deviceInfo", type: "paragraph", element: "paragraph", title: "Sofabaton X Series", description: "Driver Version: ${version()}<br>Compatible Hardware: X1S and above"
             input name: "appConfig", type: "paragraph", element: "paragraph", title: "Sofabaton App Configuration", description: "1. In the Sofabaton app, go to Devices and tap Add Device, then select Wi-Fi<br>2. Tap the link at the bottom: 'Create a virtual device for IP control'<br>3. Enter the URL: http://[your Hubitat IP]:39501/<br>4. Set the request method to PUT<br>5. Leave Content Type and Additional Headers blank<br>6. In the Body field enter either:<br>&nbsp;&nbsp;&nbsp;- A number (1-10) for a numeric button<br>&nbsp;&nbsp;&nbsp;- Any string (e.g. watchTV) for a user definable button<br>7. Repeat for each activity using a unique value each time"
             input name:"ip", type:"text", title: "Remote IP Address"
-            input name: "numericInfo", type: "paragraph", element: "paragraph", title: "Numeric Buttons", description: "Labels for buttons triggered by a number (1-10) in the request body."
-            input name:"btnLabel1", type:"text", title:"1:", description:"Button 1 label", required:false
-            input name:"btnLabel2", type:"text", title:"2:", description:"Button 2 label", required:false
-            input name:"btnLabel3", type:"text", title:"3:", description:"Button 3 label", required:false
-            input name:"btnLabel4", type:"text", title:"4:", description:"Button 4 label", required:false
-            input name:"btnLabel5", type:"text", title:"5:", description:"Button 5 label", required:false
-            input name:"btnLabel6", type:"text", title:"6:", description:"Button 6 label", required:false
-            input name:"btnLabel7", type:"text", title:"7:", description:"Button 7 label", required:false
-            input name:"btnLabel8", type:"text", title:"8:", description:"Button 8 label", required:false
-            input name:"btnLabel9", type:"text", title:"9:", description:"Button 9 label", required:false
-            input name:"btnLabel10", type:"text", title:"10:", description:"Button 10 label", required:false
             input name: "userInfo", type: "paragraph", element: "paragraph", title: "User Definable Buttons", description: "Enter the match string the remote sends. Optionally add a pipe | followed by a description e.g. watchTV|Watch TV. The match string is case sensitive and must match what you entered in the remote app."
             input name:"usrBtn1", type:"text", title:"User 1:", description:"matchString|Description", required:false
             input name:"usrBtn2", type:"text", title:"User 2:", description:"matchString|Description", required:false
@@ -101,6 +90,17 @@ metadata {
             input name:"usrBtn8", type:"text", title:"User 8:", description:"matchString|Description", required:false
             input name:"usrBtn9", type:"text", title:"User 9:", description:"matchString|Description", required:false
             input name:"usrBtn10", type:"text", title:"User 10:", description:"matchString|Description", required:false
+            input name: "numericInfo", type: "paragraph", element: "paragraph", title: "Numeric Buttons", description: "Labels for buttons triggered by a number (1-10) in the request body."
+            input name:"btnLabel1", type:"text", title:"1:", description:"Button 1 label", required:false
+            input name:"btnLabel2", type:"text", title:"2:", description:"Button 2 label", required:false
+            input name:"btnLabel3", type:"text", title:"3:", description:"Button 3 label", required:false
+            input name:"btnLabel4", type:"text", title:"4:", description:"Button 4 label", required:false
+            input name:"btnLabel5", type:"text", title:"5:", description:"Button 5 label", required:false
+            input name:"btnLabel6", type:"text", title:"6:", description:"Button 6 label", required:false
+            input name:"btnLabel7", type:"text", title:"7:", description:"Button 7 label", required:false
+            input name:"btnLabel8", type:"text", title:"8:", description:"Button 8 label", required:false
+            input name:"btnLabel9", type:"text", title:"9:", description:"Button 9 label", required:false
+            input name:"btnLabel10", type:"text", title:"10:", description:"Button 10 label", required:false
             input name:"logEnable", type: "bool", title: "Enable debug logging", defaultValue: false
             input name:"txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
         }
