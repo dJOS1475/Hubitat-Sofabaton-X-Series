@@ -26,6 +26,15 @@
 		-Added installed() handler to initialise device on first save
 		-Restructured buttons: 10 numeric (body 1-10) with labels, 10 user definable with match string and label
 
+	2026-07-18 dJOS
+		-Fixed string activities never triggering automations: pushed is a NUMBER attribute
+		 per the PushableButton capability, so the string values previously sent were invalid.
+		 User definable slots 1-10 now map to button numbers 11-20
+		-Added lastButtonValue and lastButtonLabel string attributes so rules can also trigger
+		 on the raw string sent by the remote, or on the friendly label
+		-push() now accepts 1-20 as well as a match string, resolving it to its button number
+		-Trim whitespace from the request body before matching
+
 	*OVERVIEW
 	 This driver allows a Sofabaton X Series remote to trigger Hubitat automations.
 	 When a Sofabaton activity is started or stopped on the remote, it sends a value
@@ -37,7 +46,13 @@
 	   -Numeric (1-10): fires a pushed event with the number; use Button Labels in
 	    preferences to document what each number represents
 	   -User definable (10 slots): match any string the remote sends to a named button;
-	    configure the match string and a friendly label in preferences
+	    configure the match string and a friendly label in preferences. Slot 1 fires
+	    button 11, slot 2 fires button 12, and so on through slot 10 / button 20
+
+	 Every input fires a numeric pushed event, since Hubitat's PushableButton capability
+	 defines pushed as a number. To trigger on the string itself instead, use the
+	 lastButtonValue attribute (the raw text from the remote) or lastButtonLabel (your
+	 configured description) as a Custom Attribute trigger in Rule Machine.
 	
 	 NOTE: This is one-way communication - remote to Hubitat only.
 	 To trigger a Sofabaton activity FROM Hubitat, enable the API in the Sofabaton mobile app.
@@ -67,7 +82,7 @@
 */
 
 def version() {
-    return "1.6"
+    return "1.7"
 }
 
 metadata {
@@ -75,11 +90,13 @@ metadata {
         capability "Actuator"
         capability "PushableButton"
         capability "Switch"
+        attribute "lastButtonValue", "string"
+        attribute "lastButtonLabel", "string"
         preferences {
             input name: "deviceInfo", type: "paragraph", element: "paragraph", title: "Sofabaton X Series", description: "Driver Version: ${version()}<br>Compatible Hardware: X1S and above"
             input name: "appConfig", type: "paragraph", element: "paragraph", title: "Sofabaton App Configuration", description: "1. In the Sofabaton app, go to Devices and tap Add Device, then select Wi-Fi<br>2. Tap the link at the bottom: 'Create a virtual device for IP control'<br>3. Enter the URL: http://[your Hubitat IP]:39501/<br>4. Set the request method to PUT<br>5. Leave Content Type and Additional Headers blank<br>6. In the Body field enter either:<br>&nbsp;&nbsp;&nbsp;- A number (1-10) for a numeric button<br>&nbsp;&nbsp;&nbsp;- Any string (e.g. watchTV) for a user definable button<br>7. Repeat for each activity using a unique value each time"
             input name:"ip", type:"text", title: "Remote IP Address"
-            input name: "userInfo", type: "paragraph", element: "paragraph", title: "User Definable Buttons", description: "Enter the match string the remote sends. Optionally add a pipe | followed by a description e.g. watchTV|Watch TV. The match string is case sensitive and must match what you entered in the remote app."
+            input name: "userInfo", type: "paragraph", element: "paragraph", title: "User Definable Buttons", description: "Enter the match string the remote sends. Optionally add a pipe | followed by a description e.g. watchTV|Watch TV. The match string must match what you entered in the remote app.<br>These fire button numbers 11-20 (User 1 = button 11, User 10 = button 20). You can also trigger rules on the lastButtonValue or lastButtonLabel custom attributes if you prefer matching the string itself."
             input name:"usrBtn1", type:"text", title:"User 1:", description:"matchString|Description", required:false
             input name:"usrBtn2", type:"text", title:"User 2:", description:"matchString|Description", required:false
             input name:"usrBtn3", type:"text", title:"User 3:", description:"matchString|Description", required:false
@@ -147,12 +164,12 @@ void parse(String description) {
     if (logEnable) log.debug "String is: $msg"
     if (logEnable) log.debug "String Header is: $msg.header"
     if (logEnable) log.debug "String Body is: $msg.body"
-    def data = msg.body
+    def data = msg.body?.trim()
     if (!data) {
         if (logEnable) log.warn "$device.label Empty body received, ignoring"
         return
     }
-    
+
     // 1. Check for on/off switch commands
     if (data.equalsIgnoreCase("on")) {
         sendEvent(name:"switch", value:"on")
@@ -166,58 +183,73 @@ void parse(String description) {
     if (data.isInteger()) {
         def btn = data.toInteger()
         if (btn >= 1 && btn <= 10) {
-            def lbl = settings["btnLabel${btn}"] ?: ""
-            def desc = lbl ? "$device.label Button $btn ($lbl) Pushed" : "$device.label Button $btn Pushed"
-            if (txtEnable) log.info desc
-            sendEvent(name:"pushed", value:btn, isStateChange: true)
+            firePushed(btn, settings["btnLabel${btn}"] ?: "", data)
             return
         }
     }
 
-    // 3. Check against user definable match strings
-    for (int i = 1; i <= 10; i++) {
-        def val = settings["usrBtn${i}"] ?: ""
-        if (!val) continue
-        def parts = val.split(/\|/, 2)
-        def match = parts[0].trim()
-        def lbl = parts.size() > 1 ? parts[1].trim() : match
-        if (match && data.equalsIgnoreCase(match)) {
-            if (txtEnable) log.info "$device.label User Button ($lbl) Pushed"
-            sendEvent(name:"pushed", value:data, isStateChange: true)
-            return
-        }
+    // 3. Check against user definable match strings -> buttons 11-20
+    def hit = matchUserButton(data)
+    if (hit) {
+        firePushed(hit[0] as Integer, hit[1] as String, data)
+        return
     }
 
     // 4. No match found
     log.warn "$device.label No match found for received body value: $data"
 }
 
+// Fires the numeric pushed event required by PushableButton, plus the string
+// attributes so rules can trigger on the raw value or the friendly label.
+private void firePushed(Integer btn, String lbl, String raw) {
+    if (txtEnable) log.info "$device.label Button $btn${lbl ? ' (' + lbl + ')' : ''} Pushed"
+    sendEvent(name:"pushed", value:btn, isStateChange: true, descriptionText:"$device.label button $btn was pushed")
+    sendEvent(name:"lastButtonValue", value:raw, isStateChange: true)
+    sendEvent(name:"lastButtonLabel", value:(lbl ?: raw), isStateChange: true)
+}
+
+// Returns [button, label] for a user definable slot matching str, or null.
+private List matchUserButton(String str) {
+    for (int i = 1; i <= 10; i++) {
+        def val = settings["usrBtn${i}"] ?: ""
+        if (!val) continue
+        def parts = val.split(/\|/, 2)
+        def match = parts[0].trim()
+        if (match && match.equalsIgnoreCase(str)) {
+            return [i + 10, parts.size() > 1 ? parts[1].trim() : match]
+        }
+    }
+    return null
+}
+
 void push(data) {
-    // Handle numeric buttons 1-10
-    if (data.toString().isInteger()) {
-        def btn = data.toInteger()
-        if (btn < 1 || btn > 10) {
-            log.warn "$device.label Button $btn is out of range (1-10), ignoring"
+    def str = data.toString().trim()
+
+    // Numeric buttons: 1-10 are the numeric slots, 11-20 the user definable ones
+    if (str.isInteger()) {
+        def btn = str.toInteger()
+        if (btn < 1 || btn > 20) {
+            log.warn "$device.label Button $btn is out of range (1-20), ignoring"
             return
         }
-        def lbl = settings["btnLabel${btn}"] ?: ""
-        if (txtEnable) log.info "$device.label Button $btn${lbl ? ' (' + lbl + ')' : ''} Pushed"
-        sendEvent(name:"pushed", value:btn, isStateChange: true)
-    } else {
-        // Handle user definable string buttons - look up description if available
-        def lbl = data.toString()
-        for (int i = 1; i <= 10; i++) {
-            def val = settings["usrBtn${i}"] ?: ""
-            if (!val) continue
-            def parts = val.split(/\|/, 2)
-            def match = parts[0].trim()
-            if (match.equalsIgnoreCase(lbl)) {
-                lbl = parts.size() > 1 ? parts[1].trim() : match
-                break
-            }
+        def lbl
+        if (btn <= 10) {
+            lbl = settings["btnLabel${btn}"] ?: ""
+        } else {
+            def val = settings["usrBtn${btn - 10}"] ?: ""
+            def parts = val ? val.split(/\|/, 2) : []
+            lbl = parts.size() > 1 ? parts[1].trim() : (parts ? parts[0].trim() : "")
         }
-        if (txtEnable) log.info "$device.label User Button ($lbl) Pushed"
-        sendEvent(name:"pushed", value:data, isStateChange: true)
+        firePushed(btn, lbl, str)
+        return
+    }
+
+    // String input: resolve it to its user definable button number
+    def hit = matchUserButton(str)
+    if (hit) {
+        firePushed(hit[0] as Integer, hit[1] as String, str)
+    } else {
+        log.warn "$device.label No user definable button matches '$str', ignoring"
     }
 }
 
