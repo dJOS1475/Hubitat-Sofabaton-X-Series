@@ -1,0 +1,18 @@
+{
+  "packageName": "Sofabaton X Series Driver",
+  "author": "Derek Osborn",
+  "version": "1.8.0",
+  "minimumHEVersion": "2.4.0",
+  "dateReleased": "2026-09-20",
+  "releaseNotes": "v1.8.0 - Improved onscreen instructions",
+  "communityLink": "https://community.hubitat.com/t/release-synology-srm-router-integration/164624",
+  "drivers": [
+    {
+      "id": "0e9ed073-0bd3-4c99-bacc-ad1800309f0e",
+      "name": "Sofabaton X Series Driver",
+      "namespace": "dJOS",
+      "location": "https://raw.githubusercontent.com/dJOS1475/Hubitat-Sofabaton-X-Series/refs/heads/main/Sofabaton_Driver.groovy",
+      "required": true
+    }
+  ]
+}
