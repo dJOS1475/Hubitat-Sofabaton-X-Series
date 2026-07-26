@@ -39,6 +39,16 @@
 		-Added button numbers (11-20) to the User Definable slot labels in the UI
 		-Documented the on/off switch body option in the on-screen app config instructions
 
+	2026-07-26 dJOS
+		-Fixed a malformed Remote IP Address throwing out of updated() and skipping the
+		 remaining setup; ipToHex() now validates and logs a clear error instead
+		-Fixed push() rejecting whole numbers passed as BigDecimal e.g. 11.0
+		-parse() now accepts a body of 11-20 as a direct user definable button number,
+		 matching the range push() already allowed
+		-Added warnings on save for user slots that can never fire: empty match strings,
+		 the reserved on/off values, plain numbers, and duplicates
+		-Consolidated button label lookup into labelForButton() used by parse() and push()
+
 	*OVERVIEW
 	 This driver allows a Sofabaton X Series remote to trigger Hubitat automations.
 	 When a Sofabaton activity is started or stopped on the remote, it sends a value
@@ -77,16 +87,17 @@
 	 -Set the request method to PUT
 	 -Leave Content Type and Additional Headers blank
 	 -In the Body field, enter either:
-	    -A number (1-10) for a numeric button
-	    -Any string (e.g. "watchTV") for a user definable button - must match the
-	     Match String configured in this driver's preferences exactly
+	    -A number 1-10 for a numeric button, or 11-20 for a user definable button
+	    -Any string (e.g. "watchTV") matching the Match String configured in this
+	     driver's preferences (case insensitive)
+	    -on or off to set this device's switch state
 	 -Repeat for each activity using a unique value each time
 
 
 */
 
 def version() {
-    return "1.8"
+    return "1.9"
 }
 
 metadata {
@@ -98,7 +109,7 @@ metadata {
         attribute "lastButtonLabel", "string"
         preferences {
             input name: "deviceInfo", type: "paragraph", element: "paragraph", title: "Sofabaton X Series", description: "Driver Version: ${version()}<br>Compatible Hardware: X1S and above"
-            input name: "appConfig", type: "paragraph", element: "paragraph", title: "Sofabaton App Configuration", description: "1. In the Sofabaton app, go to Devices and tap Add Device, then select Wi-Fi<br>2. Tap the link at the bottom: 'Create a virtual device for IP control'<br>3. Enter the URL: http://[your Hubitat IP]:39501/<br>4. Set the request method to PUT<br>5. Leave Content Type and Additional Headers blank<br>6. In the Body field enter either:<br>&nbsp;&nbsp;&nbsp;- A number (1-10) for a numeric button<br>&nbsp;&nbsp;&nbsp;- Any string (e.g. watchTV) for a user definable button<br>&nbsp;&nbsp;&nbsp;- on or off to set this device's switch state<br>7. Repeat for each activity using a unique value each time"
+            input name: "appConfig", type: "paragraph", element: "paragraph", title: "Sofabaton App Configuration", description: "1. In the Sofabaton app, go to Devices and tap Add Device, then select Wi-Fi<br>2. Tap the link at the bottom: 'Create a virtual device for IP control'<br>3. Enter the URL: http://[your Hubitat IP]:39501/<br>4. Set the request method to PUT<br>5. Leave Content Type and Additional Headers blank<br>6. In the Body field enter either:<br>&nbsp;&nbsp;&nbsp;- A number 1-10 for a numeric button, or 11-20 for a user definable button<br>&nbsp;&nbsp;&nbsp;- Any string (e.g. watchTV) matching a user definable slot<br>&nbsp;&nbsp;&nbsp;- on or off to set this device's switch state<br>7. Repeat for each activity using a unique value each time"
             input name:"ip", type:"text", title: "Remote IP Address"
             input name: "userInfo", type: "paragraph", element: "paragraph", title: "User Definable Buttons", description: "Enter the match string the remote sends. Optionally add a pipe | followed by a description e.g. watchTV|Watch TV. The match string must match what you entered in the remote app.<br>These fire button numbers 11-20 (User 1 = button 11, User 10 = button 20). You can also trigger rules on the lastButtonValue or lastButtonLabel custom attributes if you prefer matching the string itself."
             input name:"usrBtn1", type:"text", title:"User 1 (11):", description:"matchString|Description", required:false
@@ -144,9 +155,6 @@ void updated(){
     log.warn "description logging is: ${txtEnable == true}"
     if (logEnable) runIn(1800,logsOff)
     sendEvent(name:"numberOfButtons", value:20)
-    if (ip) {
-        device.deviceNetworkId = ipToHex(ip)
-    }
     // Truncate numeric button labels to 40 chars
     for (int i = 1; i <= 10; i++) {
         def lbl = settings["btnLabel${i}"] ?: ""
@@ -160,6 +168,38 @@ void updated(){
         if (val.length() > 80) {
             device.updateSetting("usrBtn${i}", [value:val.take(80), type:"text"])
         }
+    }
+    validateUserButtons()
+    // Set the DNI last so a malformed IP cannot prevent any of the above from running
+    if (ip) {
+        String dni = ipToHex(ip)
+        if (dni) device.deviceNetworkId = dni
+    }
+}
+
+// Warns about user definable slots that can never fire, so silent misconfiguration
+// shows up in the logs at save time rather than as a mystery later
+private void validateUserButtons() {
+    def seen = [:]
+    for (int i = 1; i <= 10; i++) {
+        def val = settings["usrBtn${i}"] ?: ""
+        if (!val) continue
+        String match = val.split(/\|/, 2)[0].trim()
+        String slot = "User ${i} (${i + 10})"
+        if (!match) {
+            log.warn "$slot has a description but no match string, it will never fire"
+            continue
+        }
+        if (match.equalsIgnoreCase("on") || match.equalsIgnoreCase("off")) {
+            log.warn "$slot match string '$match' is reserved for the switch state and will never fire this button"
+        }
+        Integer n = toButtonNumber(match)
+        if (n != null && n >= 1 && n <= 20) {
+            log.warn "$slot match string '$match' is a plain number and will fire button $n instead"
+        }
+        String key = match.toLowerCase()
+        if (seen[key]) log.warn "$slot match string '$match' duplicates User ${seen[key]}, only the first will fire"
+        else seen[key] = i
     }
 }
 
@@ -183,13 +223,11 @@ void parse(String description) {
         return
     }
 
-    // 2. Check if body is a numeric button (1-10)
-    if (data.isInteger()) {
-        def btn = data.toInteger()
-        if (btn >= 1 && btn <= 10) {
-            firePushed(btn, settings["btnLabel${btn}"] ?: "", data)
-            return
-        }
+    // 2. Check if body is a button number (1-10 numeric, 11-20 user definable)
+    Integer btn = toButtonNumber(data)
+    if (btn != null && btn >= 1 && btn <= 20) {
+        firePushed(btn, labelForButton(btn), data)
+        return
     }
 
     // 3. Check against user definable match strings -> buttons 11-20
@@ -212,6 +250,27 @@ private void firePushed(Integer btn, String lbl, String raw) {
     sendEvent(name:"lastButtonLabel", value:(lbl ?: raw), isStateChange: true)
 }
 
+// Coerces a button number from a String, Integer or BigDecimal ("11", "11.0", 11).
+// Returns null if the value is not a whole number.
+private Integer toButtonNumber(def val) {
+    String s = val?.toString()?.trim()
+    if (!s) return null
+    if (s.isInteger()) return s.toInteger()
+    if (s.isBigDecimal() && s.toBigDecimal().stripTrailingZeros().scale() <= 0) {
+        return s.toBigDecimal().intValue()
+    }
+    return null
+}
+
+// Label for any button 1-20: numeric labels for 1-10, user descriptions for 11-20.
+private String labelForButton(Integer btn) {
+    if (btn <= 10) return settings["btnLabel${btn}"] ?: ""
+    def val = settings["usrBtn${btn - 10}"] ?: ""
+    if (!val) return ""
+    def parts = val.split(/\|/, 2)
+    return parts.size() > 1 ? parts[1].trim() : parts[0].trim()
+}
+
 // Returns [button, label] for a user definable slot matching str, or null.
 private List matchUserButton(String str) {
     for (int i = 1; i <= 10; i++) {
@@ -227,24 +286,16 @@ private List matchUserButton(String str) {
 }
 
 void push(data) {
-    def str = data.toString().trim()
+    String str = data?.toString()?.trim() ?: ""
 
     // Numeric buttons: 1-10 are the numeric slots, 11-20 the user definable ones
-    if (str.isInteger()) {
-        def btn = str.toInteger()
+    Integer btn = toButtonNumber(str)
+    if (btn != null) {
         if (btn < 1 || btn > 20) {
             log.warn "$device.label Button $btn is out of range (1-20), ignoring"
             return
         }
-        def lbl
-        if (btn <= 10) {
-            lbl = settings["btnLabel${btn}"] ?: ""
-        } else {
-            def val = settings["usrBtn${btn - 10}"] ?: ""
-            def parts = val ? val.split(/\|/, 2) : []
-            lbl = parts.size() > 1 ? parts[1].trim() : (parts ? parts[0].trim() : "")
-        }
-        firePushed(btn, lbl, str)
+        firePushed(btn, labelForButton(btn), str)
         return
     }
 
@@ -267,11 +318,15 @@ void off() {
     sendEvent(name:"switch", value:"off")
 }
 
+// Returns the hex DNI for an IPv4 address, or null (with an error logged) if malformed
 String ipToHex(String ipAddress) {
-    List<String> quad = ipAddress.split(/\./)
-    String hexIP = ""
-    quad.each {
-        hexIP += Integer.toHexString(it.toInteger()).padLeft(2,"0").toUpperCase()
+    List<String> quad = (ipAddress ?: "").trim().split(/\./)
+    boolean valid = quad.size() == 4 && quad.every {
+        it.isInteger() && it.toInteger() >= 0 && it.toInteger() <= 255
     }
-    return hexIP
+    if (!valid) {
+        log.error "$device.label Remote IP Address '${ipAddress}' is not a valid IPv4 address - the remote will not be able to reach this device"
+        return null
+    }
+    return quad.collect { Integer.toHexString(it.toInteger()).padLeft(2,"0").toUpperCase() }.join()
 }

@@ -1,6 +1,6 @@
 # Hubitat-Sofabaton-X-Series
 
-Hubitat driver for the Sofabaton X Series v1.8
+Hubitat driver for the Sofabaton X Series v1.9
 
 Lets a Sofabaton X Series remote trigger Hubitat automations. When you start or stop an
 activity on the remote, it sends a value to Hubitat over a local HTTP PUT, and the driver
@@ -32,6 +32,7 @@ The driver accepts three kinds of input in the request body:
 |---|---|
 | `on` or `off` | A switch event (always active, no configuration needed) |
 | `1` – `10` | Button 1–10 |
+| `11` – `20` | Button 11–20, the user definable slots, by number |
 | Any string you configure | Button 11–20, matched against your User Definable slots |
 
 Because Hubitat's `PushableButton` capability defines `pushed` as a **number**, every input
@@ -57,7 +58,8 @@ In the Sofabaton mobile app:
 3. Enter the URL `http://[your Hubitat IP]:39501/`
 4. Set the request method to **PUT**.
 5. Leave Content Type and Additional Headers blank.
-6. In the **Body** field, enter either a number `1`–`10`, or any string such as `watchTV`.
+6. In the **Body** field, enter either a number `1`–`20`, any string such as `watchTV`, or
+   `on`/`off` to set the switch state.
 7. Repeat for each activity, using a unique value each time.
 
 ## Configuring the driver
@@ -78,6 +80,12 @@ watchTV|Watch TV
 
 Matching is case insensitive, and surrounding whitespace is ignored. The description is used
 in log messages and in the `lastButtonLabel` attribute.
+
+A few match strings can never fire, and the driver warns about them in the logs when you save:
+
+- `on` and `off`, which are reserved for the switch state
+- a plain number 1–20, which is treated as a button number instead
+- a duplicate of another slot's match string, where only the first slot wins
 
 ## Using it in Rule Machine
 
@@ -115,7 +123,11 @@ Turn on **Enable debug logging** in the device preferences, then trigger the act
 problem.
 
 - **`No match found for received body value: X`** — the body the remote sent doesn't match any
-  User Definable slot, and isn't a number 1–10. Copy the exact value from the log into a slot.
+  User Definable slot, and isn't a number 1–20. Copy the exact value from the log into a slot.
+- **`... is not a valid IPv4 address`** — the Remote IP Address preference is malformed. The
+  remote won't reach the driver until it matches your Sofabaton hub's reserved address.
+- **`... will never fire`** — a User Definable slot is misconfigured; the warning names the slot
+  and the reason.
 - **Nothing appears in the logs at all** — the remote isn't reaching Hubitat. Check the URL is
   port `39501`, the method is PUT, and that the Remote IP Address preference matches your
   Sofabaton hub's actual (reserved) address.
