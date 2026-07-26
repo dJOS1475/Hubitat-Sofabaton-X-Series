@@ -5,7 +5,7 @@
   "minimumHEVersion": "2.4.0",
   "dateReleased": "2026-07-26",
   "releaseNotes": "v1.9.0 - Bug fixes and new config warnings",
-  "communityLink": "https://community.hubitat.com/t/release-synology-srm-router-integration/164624",
+  "communityLink": "https://community.hubitat.com/t/release-sofabaton-x-series-universal-remote-driver/165192",
   "drivers": [
     {
       "id": "0e9ed073-0bd3-4c99-bacc-ad1800309f0e",
