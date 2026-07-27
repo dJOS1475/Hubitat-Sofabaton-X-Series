@@ -1,6 +1,6 @@
 # Hubitat-Sofabaton-X-Series
 
-Hubitat driver for the Sofabaton X Series v1.9
+Hubitat driver for the Sofabaton X Series v1.10.0
 
 Lets a Sofabaton X Series remote trigger Hubitat automations. When you start or stop an
 activity on the remote, it sends a value to Hubitat over a local HTTP PUT, and the driver
