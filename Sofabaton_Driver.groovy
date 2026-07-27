@@ -49,6 +49,9 @@
 		 the reserved on/off values, plain numbers, and duplicates
 		-Consolidated button label lookup into labelForButton() used by parse() and push()
 
+    2026-07-26 dJOS
+        -Fixed a typo in the instructions
+
 	*OVERVIEW
 	 This driver allows a Sofabaton X Series remote to trigger Hubitat automations.
 	 When a Sofabaton activity is started or stopped on the remote, it sends a value
@@ -97,7 +100,7 @@
 */
 
 def version() {
-    return "1.9"
+    return "1.10.0"
 }
 
 metadata {
@@ -109,7 +112,7 @@ metadata {
         attribute "lastButtonLabel", "string"
         preferences {
             input name: "deviceInfo", type: "paragraph", element: "paragraph", title: "Sofabaton X Series", description: "Driver Version: ${version()}<br>Compatible Hardware: X1S and above"
-            input name: "appConfig", type: "paragraph", element: "paragraph", title: "Sofabaton App Configuration", description: "1. In the Sofabaton app, go to Devices and tap Add Device, then select Wi-Fi<br>2. Tap the link at the bottom: 'Create a virtual device for IP control'<br>3. Enter the URL: http://[your Hubitat IP]:39501/<br>4. Set the request method to PUT<br>5. Leave Content Type and Additional Headers blank<br>6. In the Body field enter either:<br>&nbsp;&nbsp;&nbsp;- A number 1-10 for a numeric button, or 11-20 for a user definable button<br>&nbsp;&nbsp;&nbsp;- Any string (e.g. watchTV) matching a user definable slot<br>&nbsp;&nbsp;&nbsp;- on or off to set this device's switch state<br>7. Repeat for each activity using a unique value each time"
+            input name: "appConfig", type: "paragraph", element: "paragraph", title: "Sofabaton App Configuration", description: "1. In the Sofabaton app, go to Devices and tap Add Device, then select Wi-Fi<br>2. Tap the link at the bottom: 'Create a virtual device for IP control'<br>3. Enter the URL: http://[your Hubitat IP]:39501/<br>4. Set the request method to PUT<br>5. Leave Connect Type and Additional Headers blank<br>6. In the Body field enter either:<br>&nbsp;&nbsp;&nbsp;- A number 1-10 for a numeric button, or 11-20 for a user definable button<br>&nbsp;&nbsp;&nbsp;- Any string (e.g. watchTV) matching a user definable slot<br>&nbsp;&nbsp;&nbsp;- on or off to set this device's switch state<br>7. Repeat for each activity using a unique value each time"
             input name:"ip", type:"text", title: "Remote IP Address"
             input name: "userInfo", type: "paragraph", element: "paragraph", title: "User Definable Buttons", description: "Enter the match string the remote sends. Optionally add a pipe | followed by a description e.g. watchTV|Watch TV. The match string must match what you entered in the remote app.<br>These fire button numbers 11-20 (User 1 = button 11, User 10 = button 20). You can also trigger rules on the lastButtonValue or lastButtonLabel custom attributes if you prefer matching the string itself."
             input name:"usrBtn1", type:"text", title:"User 1 (11):", description:"matchString|Description", required:false
